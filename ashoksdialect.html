@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ashoksdialect — channel dial</title>
+<meta name="description" content="ashoksdialect — one voice, sixteen channels in orbit.">
+<meta property="og:title" content="ashoksdialect">
+<meta property="og:description" content="One voice, sixteen channels in orbit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ice:#8FE9FF;
+  --text:#E8EEF6;
+  --dim:#5A6A88;
+  --hair:rgba(143,233,255,.13);
+  --c:#8FE9FF;                     /* focused channel colour */
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;height:100dvh}
+body{
+  background:#02030A;color:var(--text);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  overflow:hidden;-webkit-font-smoothing:antialiased;
+  overscroll-behavior:none;touch-action:none;
+}
+
+/* ══ deep space ══ */
+.sky{position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(130% 100% at 50% 8%, #101A3A 0%, #070B1D 42%, #02030A 78%),
+    radial-gradient(80% 60% at 82% 92%, #1A1230 0%, transparent 60%);}
+#stars{position:fixed;inset:0;z-index:1;pointer-events:none}
+.nebula{
+  position:fixed;left:50%;top:52%;width:120vmax;height:120vmax;z-index:1;
+  transform:translate(-50%,-50%);pointer-events:none;filter:blur(60px);opacity:.7;
+  background:
+    radial-gradient(closest-side, color-mix(in srgb,var(--c) 17%,transparent), transparent 70%),
+    radial-gradient(closest-side at 34% 62%, rgba(120,80,220,.16), transparent 66%),
+    radial-gradient(closest-side at 70% 34%, rgba(30,140,190,.13), transparent 62%);
+  transition:background 900ms cubic-bezier(.22,1,.36,1);
+  animation:drift 48s ease-in-out infinite alternate;
+}
+@keyframes drift{to{transform:translate(-52%,-49%) scale(1.09) rotate(7deg)}}
+.edge{position:fixed;inset:0;z-index:1;pointer-events:none;
+  box-shadow:inset 0 0 200px 40px rgba(2,3,10,.82)}
+
+/* ══ HUD ══ */
+.hud{position:fixed;z-index:6;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--dim);pointer-events:none}
+.hud .lit{color:var(--c);transition:color .5s}
+.hud-tl{top:22px;left:clamp(16px,4vw,42px)}
+.hud-tr{top:22px;right:clamp(16px,4vw,42px);text-align:right}
+.hud-bl{bottom:22px;left:clamp(16px,4vw,42px)}
+.hud-br{bottom:22px;right:clamp(16px,4vw,42px);text-align:right}
+.mark{font-family:'Space Grotesk',sans-serif;font-size:clamp(15px,2.2vw,19px);font-weight:700;
+  letter-spacing:-.03em;text-transform:none;color:var(--text);display:block;margin-bottom:3px}
+.mark i{font-style:normal;color:var(--c);transition:color .5s}
+.corner{position:fixed;width:24px;height:24px;border:1px solid var(--hair);z-index:5;pointer-events:none}
+.c-tl{top:14px;left:14px;border-right:0;border-bottom:0}
+.c-tr{top:14px;right:14px;border-left:0;border-bottom:0}
+.c-bl{bottom:14px;left:14px;border-right:0;border-top:0}
+.c-br{bottom:14px;right:14px;border-left:0;border-top:0}
+
+/* ══ 3D scene ══ */
+.stage{position:fixed;inset:0;z-index:3;perspective:1150px;perspective-origin:50% 47%;
+  display:grid;place-items:center;cursor:grab}
+.stage.dragging{cursor:grabbing}
+.scene{position:relative;width:100%;height:100%;transform-style:preserve-3d;display:grid;place-items:center}
+.layer{position:absolute;left:50%;top:50%;transform-style:preserve-3d}
+.layer > svg,.spin > svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);overflow:visible}
+.spin{transform-style:preserve-3d;animation:spinZ var(--sp) linear infinite var(--sd,normal)}
+@keyframes spinZ{to{transform:rotateZ(360deg)}}
+
+.rim{fill:none;stroke:var(--hair);stroke-width:1}
+.tick{stroke:var(--hair);stroke-width:1}
+.glowring{fill:none;stroke:var(--c);stroke-width:1;opacity:.45;
+  filter:drop-shadow(0 0 7px var(--c));transition:stroke .5s}
+.dust circle{fill:var(--ice)}
+.trail{fill:none;stroke:var(--c);stroke-width:1;opacity:.16;stroke-dasharray:3 9;transition:stroke .5s}
+
+.comet{position:absolute;left:0;top:0;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+  border-radius:50%;background:var(--c);box-shadow:0 0 16px 3px var(--c);opacity:.85;
+  transition:background .5s,box-shadow .5s}
+
+.node{position:absolute;left:0;top:0;display:grid;place-items:center;border-radius:50%;
+  text-decoration:none;transform-style:preserve-3d;will-change:transform,opacity}
+/* each channel is a lit sphere — the light comes from the star at the centre,
+   so --lx/--ly are recomputed per planet, per frame, from its orbital position */
+.node .disc{
+  position:relative;display:grid;place-items:center;width:100%;height:100%;
+  border-radius:50%;overflow:hidden;
+  background:radial-gradient(circle at var(--lx,38%) var(--ly,32%),
+    color-mix(in srgb,var(--nc) 30%,#28324B) 0%,
+    color-mix(in srgb,var(--nc) 19%,#131A2C) 32%,
+    color-mix(in srgb,var(--nc) 10%,#0A0F1C) 64%,
+    #05070E 95%);
+  box-shadow:inset var(--sx,0px) var(--sy,0px) 15px -5px rgba(2,4,12,.92),
+             0 8px 20px -10px rgba(0,0,0,.95);
+  filter:saturate(.5) brightness(.72);
+  transition:filter .4s,box-shadow .45s;
+}
+/* surface bands scrolling under the lighting — the planet turning on its axis */
+.node .disc::before{
+  content:"";position:absolute;top:-12%;left:0;width:200%;height:124%;z-index:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.11) 0 2px,transparent 2px 9px),
+             repeating-linear-gradient(90deg,rgba(0,0,0,.14) 0 5px,transparent 5px 17px);
+  animation:surf var(--spin,9s) linear infinite;opacity:.3;
+}
+@keyframes surf{to{transform:translateX(-50%)}}
+/* specular highlight, rim light on the dark limb, limb darkening */
+.node .disc::after{
+  content:"";position:absolute;inset:0;z-index:1;border-radius:50%;
+  background:
+    radial-gradient(circle at var(--lx,38%) var(--ly,32%),
+      rgba(255,255,255,.3) 0%,rgba(255,255,255,.07) 12%,transparent 34%),
+    radial-gradient(circle at calc(100% - var(--lx,38%)) calc(100% - var(--ly,32%)),
+      rgba(255,255,255,.12) 0%,transparent 24%),
+    radial-gradient(circle at 50% 50%,transparent 52%,rgba(2,4,12,.86) 94%);
+}
+.node svg{position:relative;z-index:2;width:47%;height:47%;display:block;
+  fill:rgba(255,255,255,.9);filter:drop-shadow(0 1px 3px rgba(0,0,0,.85));transition:fill .3s}
+.node.on .disc{
+  filter:saturate(.95) brightness(.95);
+  box-shadow:inset var(--sx,0px) var(--sy,0px) 15px -5px rgba(2,4,12,.85),
+             0 0 28px color-mix(in srgb,var(--nc) 38%,transparent),
+             0 0 0 1px color-mix(in srgb,var(--nc) 32%,transparent);
+}
+.node.on svg{fill:#fff}
+.node:hover svg{fill:#fff}
+.node{cursor:pointer}
+.node:hover .disc{filter:saturate(1) brightness(1.05)}
+.node:focus-visible{outline:2px solid var(--nc);outline-offset:6px}
+.probe{visibility:hidden;pointer-events:none}
+
+/* ══ core star ══ */
+.core{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);
+  width:clamp(220px,40vw,300px);text-align:center;pointer-events:none}
+.star{position:relative;width:clamp(58px,9vw,74px);aspect-ratio:1;margin:0 auto 14px}
+.corona{position:absolute;inset:-16px;border-radius:50%;border:1px solid color-mix(in srgb,var(--c) 30%,transparent);
+  animation:breathe 5.5s ease-in-out infinite;transition:border-color .5s}
+.corona:nth-of-type(2){inset:-30px;animation-delay:-2.6s;opacity:.55}
+@keyframes breathe{50%{transform:scale(1.08);opacity:.35}}
+.avatar{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--c) 45%,transparent);
+  background:radial-gradient(circle at 50% 35%,#1B2547,#070B18);
+  box-shadow:0 0 34px -4px color-mix(in srgb,var(--c) 60%,transparent);
+  font-weight:700;font-size:clamp(22px,3.4vw,28px);letter-spacing:-.04em;color:var(--c);
+  transition:border-color .5s,box-shadow .5s,color .5s}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.bio{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:16px}
+.rule{width:32px;height:1px;background:var(--hair);margin:0 auto 16px}
+.chan{font-size:clamp(27px,5.2vw,41px);font-weight:700;letter-spacing:-.035em;line-height:1;
+  transition:opacity .18s ease}
+.ipa{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--c);margin-top:8px;
+  transition:opacity .18s,color .5s}
+.gloss{font-size:13.5px;line-height:1.5;color:var(--dim);margin-top:11px;transition:opacity .18s}
+.gloss em{font-style:italic;color:#7E8CA8}
+.fade{opacity:0}
+
+.strip{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:6;display:flex;gap:5px;pointer-events:none}
+.pip{width:3px;height:9px;border-radius:2px;background:#1E2A44;transition:.35s}
+.pip.on{height:15px;background:var(--c);box-shadow:0 0 10px var(--c)}
+
+@media (max-width:700px){ .strip{bottom:70px} .gloss{display:none} .hud-br{display:none} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<canvas id="stars"></canvas>
+<div class="nebula"></div>
+<div class="edge"></div>
+<i class="corner c-tl"></i><i class="corner c-tr"></i><i class="corner c-bl"></i><i class="corner c-br"></i>
+
+<div class="hud hud-tl"><span class="mark">ashoks<i>dialect</i></span><span>channel dial</span></div>
+<div class="hud hud-tr"><span class="lit" id="idx">01</span> / <span id="tot">16</span> channels</div>
+<div class="hud hud-bl">scroll · drag · click a planet</div>
+<div class="hud hud-br"><span id="band">build</span> band</div>
+
+<div class="stage" id="stage">
+  <div class="scene" id="scene">
+    <div class="layer" id="plate"></div>
+    <div class="layer" id="beltTilt"><div class="spin" id="belt" style="--sp:300s;--sd:reverse"></div></div>
+    <div class="layer" id="cometTilt">
+      <div class="spin" id="cometPath" style="--sp:34s"><i class="comet" id="cometDot"></i></div>
+    </div>
+    <div class="layer" id="dial"></div>
+  </div>
+  <div class="core">
+    <div class="star">
+      <i class="corona"></i><i class="corona"></i>
+      <div class="avatar" id="avatar">A</div>
+    </div>
+    <p class="bio" id="bio"></p>
+    <div class="rule"></div>
+    <h1 class="chan" id="chan">—</h1>
+    <p class="ipa" id="ipa"></p>
+    <p class="gloss" id="gloss"></p>
+  </div>
+</div>
+<div class="strip" id="strip"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   1 · YOU
+   ══════════════════════════════════════════════════════════════════════ */
+const ME = {
+  monogram : "A",
+  avatar   : "",                       // ← paste an image URL to use a photo
+  bio      : "builder · writer · chart-reader"
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   2 · CHANNELS — copy any block to add an account
+     icon = SVG path on a 24×24 grid, from simpleicons.org
+   ══════════════════════════════════════════════════════════════════════ */
+const ENTRIES = [
+  { name:"GitHub", band:"build", colour:"#E6EDF3",
+    handle:"github.com/ashoksdialect", url:"https://github.com/ashoksdialect",
+    phonetic:"/ˈɡɪt.hʌb/", gloss:"<em>v.</em> to build in the open — commits, repos, the occasional 3am fix.",
+    icon:"M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" },
+
+  { name:"Kaggle", band:"build", colour:"#20BEFF",
+    handle:"kaggle.com/ashoksdialect", url:"https://www.kaggle.com/ashoksdialect",
+    phonetic:"/ˈkæ.ɡəl/", gloss:"<em>v.</em> to argue with a dataset until it finally agrees.",
+    icon:"M.1025 7.3475c-.0681 0-.1022.0341-.1022.102v6.752c0 .0681.034.1022.1022.1022h.7049c.068 0 .1022-.034.1022-.1023v-1.481l.4187-.3985 1.5016 1.91c.041.0477.0884.0716.143.0716h.9091c.0476 0 .0748-.0135.0817-.0407.0135-.041.0066-.075-.0206-.1023l-1.9816-2.4618 1.9002-1.8384c.0204-.0205.0237-.051.01-.092-.0137-.0339-.0408-.051-.0816-.051h-.9398c-.0477 0-.0953.024-.143.0716L.9096 11.607V7.4496c0-.0679-.0342-.102-.1022-.102zm18.0417 0c-.068 0-.102.0341-.102.102v6.752c0 .0681.034.102.102.102h.705c.068 0 .102-.034.102-.102v-6.752c0-.068-.034-.102-.102-.102zM5.961 9.6254c-.5653 0-1.11.1806-1.6343.5415-.0545.0545-.0648.102-.0307.143l.3676.5208c.0272.0477.0717.0545.133.0204.3948-.2722.783-.4086 1.1644-.4086.2927 0 .5158.0886.669.2656.1532.1771.2197.3917.1992.6436-.6606.0681-1.1545.1495-1.4813.245-.8308.2383-1.2461.6913-1.2461 1.3586 0 .4222.1533.7695.4598 1.0419.3132.2654.6845.3982 1.1134.3982.4698 0 .8545-.1125 1.1542-.3372v.1432c0 .0682.0374.102.1123.102h.7048c.068 0 .102-.0338.102-.102V11.372c0-.6604-.2245-1.1406-.6739-1.4403-.3065-.2043-.6776-.3063-1.1134-.3063zm4.3225 0c-.6742 0-1.195.2622-1.5627.7865-.3133.4359-.4699.9671-.4699 1.5936 0 .6604.1634 1.2087.4903 1.6444.3744.4972.892.7455 1.5526.7455.5313 0 .9567-.1327 1.2768-.3982v.531c0 .858-.4122 1.287-1.236 1.287-.361 0-.732-.1907-1.1132-.572a.098.098 0 00-.0716-.0306c-.034 0-.0613.0102-.0817.0307l-.4802.48c-.0408.0613-.0375.1124.0103.1532.1361.1157.2554.2129.3576.2911.102.0783.1905.1413.2656.189.354.1975.7284.2961 1.1235.2961.6808 0 1.207-.1925 1.5781-.577.3711-.3848.5567-.9484.5567-1.6903V9.8196c0-.068-.034-.102-.102-.102h-.705c-.0682 0-.1021.034-.1021.102v.2043c-.3471-.2657-.7763-.3985-1.287-.3985zm4.8021 0c-.6742 0-1.195.2622-1.5627.7865-.3132.4359-.4699.9671-.4699 1.5936 0 .6604.1633 1.2087.4903 1.6444.3744.4972.892.7455 1.5526.7455.5311 0 .9566-.1327 1.2768-.3982v.531c0 .858-.4122 1.287-1.236 1.287-.361 0-.732-.1907-1.1133-.572a.098.098 0 00-.0716-.0306c-.034 0-.0612.0102-.0816.0307l-.48.48c-.0409.0613-.0376.1124.01.1532.1363.1157.2555.2129.3576.2911.1021.0783.1906.1413.2657.189.354.1975.7285.2961 1.1237.2961.6808 0 1.2068-.1925 1.5781-.577.371-.3848.5565-.9484.5565-1.6903V9.8196c0-.068-.034-.102-.102-.102h-.7049c-.0682 0-.1022.034-.1022.102v.2043c-.3474-.2657-.7763-.3985-1.287-.3985zm6.7457 0c-.6537 0-1.185.211-1.5936.6332-.4427.4632-.664 1.0283-.664 1.6956 0 .7083.225 1.2905.6743 1.7467.463.463 1.042.6945 1.7366.6945.6467 0 1.2154-.1838 1.7057-.5515.0545-.041.0545-.0884 0-.143l-.4802-.4903c-.041-.0409-.0919-.0409-.1533 0-.2998.2112-.6368.3167-1.0112.3167-.4222 0-.7729-.119-1.052-.3576-.2452-.2248-.3882-.5038-.429-.8375h3.3197c.0679 0 .1022-.0341.1022-.1023l.01-.2244c.0341-.6878-.1668-1.26-.6025-1.7162-.4224-.4426-.9432-.664-1.5627-.664zm-.0206.7865c.3268 0 .6062.1056.8377.3166.2452.211.371.4734.378.7865h-2.4618c.0613-.3269.2077-.5925.4392-.7968.2313-.2042.5004-.3063.8069-.3063zm-11.4249.102c.6196 0 1.0146.2181 1.1848.6538v1.6854c-.1702.4358-.5755.6538-1.2155.6538-.3133 0-.5687-.0986-.7661-.2963-.2656-.2518-.3983-.6538-.3983-1.2053 0-.9941.3984-1.4914 1.1951-1.4914zm4.802 0c.6196 0 1.0148.2181 1.1851.6538h-.0002v1.6854c-.1703.4358-.5755.6538-1.2155.6538-.3132 0-.5686-.0986-.7661-.2963-.2655-.2518-.3983-.6538-.3983-1.2053 0-.9941.3983-1.4914 1.195-1.4914zm-8.3586 1.6547v1.0215c-.286.286-.6675.412-1.1441.3779-.1703-.0135-.32-.0663-.4493-.1582-.1294-.0919-.2045-.2129-.2249-.3627-.0341-.2657.1158-.47.4495-.6129.2452-.1088.7013-.1974 1.3688-.2656z" },
+
+  { name:"LeetCode", band:"build", colour:"#FFA116",
+    handle:"leetcode.com/u/ashoksdialect", url:"https://leetcode.com/u/ashoksdialect",
+    phonetic:"/liːt.koʊd/", gloss:"<em>n.</em> daily reps. Problems in, patterns out.",
+    icon:"M13.483 0a1.374 1.374 0 0 0-.961.438L7.116 6.226l-3.854 4.126a5.266 5.266 0 0 0-1.209 2.104 5.35 5.35 0 0 0-.125.513 5.527 5.527 0 0 0 .062 2.362 5.83 5.83 0 0 0 .349 1.017 5.938 5.938 0 0 0 1.271 1.818l4.277 4.193.039.038c2.248 2.165 5.852 2.133 8.063-.074l2.396-2.392c.54-.54.54-1.414.003-1.955a1.378 1.378 0 0 0-1.951-.003l-2.396 2.392a3.021 3.021 0 0 1-4.205.038l-.02-.019-4.276-4.193c-.652-.64-.972-1.469-.948-2.263a2.68 2.68 0 0 1 .066-.523 2.545 2.545 0 0 1 .619-1.164L9.13 8.114c1.058-1.134 3.204-1.27 4.43-.278l3.501 2.831c.593.48 1.461.387 1.94-.207a1.384 1.384 0 0 0-.207-1.943l-3.5-2.831c-.8-.647-1.766-1.045-2.774-1.202l2.015-2.158A1.384 1.384 0 0 0 13.483 0zm-2.866 12.815a1.38 1.38 0 0 0-1.38 1.382 1.38 1.38 0 0 0 1.38 1.382H20.79a1.38 1.38 0 0 0 1.38-1.382 1.38 1.38 0 0 0-1.38-1.382z" },
+
+  { name:"HackerRank", band:"build", colour:"#00EA64",
+    handle:"hackerrank.com/ashoksdialect", url:"https://www.hackerrank.com/profile/ashoksdialect",
+    phonetic:"/ˈhæk.ər.ræŋk/", gloss:"<em>n.</em> the same reps, but on the clock.",
+    icon:"M0 0v24h24V0zm9.95 8.002h1.805c.061 0 .111.05.111.111v7.767c0 .061-.05.111-.11.111H9.95c-.061 0-.111-.05-.111-.11v-2.87H7.894v2.87c0 .06-.05.11-.11.11H5.976a.11.11 0 01-.11-.11V8.112c0-.06.05-.11.11-.11h1.806c.061 0 .11.05.11.11v2.869H9.84v-2.87c0-.06.05-.11.11-.11zm2.999 0h5.778c.061 0 .111.05.111.11v7.767a.11.11 0 01-.11.112h-5.78a.11.11 0 01-.11-.11V8.111c0-.06.05-.11.11-.11z" },
+
+  { name:"TradingView", band:"build", colour:"#5B8CFF",
+    handle:"tradingview.com/u/ashoksdialect", url:"https://www.tradingview.com/u/ashoksdialect/",
+    phonetic:"/ˈtreɪ.dɪŋ.vjuː/", gloss:"<em>n.</em> charts read like a second language. Ideas, published.",
+    icon:"M15.8654 8.2789c0 1.3541-1.0978 2.4519-2.452 2.4519-1.354 0-2.4519-1.0978-2.4519-2.452 0-1.354 1.0978-2.4518 2.452-2.4518 1.3541 0 2.4519 1.0977 2.4519 2.4519zM9.75 6H0v4.9038h4.8462v7.2692H9.75Zm8.5962 0H24l-5.1058 12.173h-5.6538z" },
+
+  { name:"Medium", band:"publish", colour:"#A3E635",
+    handle:"medium.com/@ashoksdialect", url:"https://medium.com/@ashoksdialect",
+    phonetic:"/ˈmiː.di.əm/", gloss:"<em>n.</em> the long version, with paragraphs and second thoughts.",
+    icon:"M4.21 0A4.201 4.201 0 0 0 0 4.21v15.58A4.201 4.201 0 0 0 4.21 24h15.58A4.201 4.201 0 0 0 24 19.79v-1.093c-.137.013-.278.02-.422.02-2.577 0-4.027-2.146-4.09-4.832a7.592 7.592 0 0 1 .022-.708c.093-1.186.475-2.241 1.105-3.022a3.885 3.885 0 0 1 1.395-1.1c.468-.237 1.127-.367 1.664-.367h.023c.101 0 .202.004.303.01V4.211A4.201 4.201 0 0 0 19.79 0Zm.198 5.583h4.165l3.588 8.435 3.59-8.435h3.864v.146l-.019.004c-.705.16-1.063.397-1.063 1.254h-.003l.003 10.274c.06.676.424.885 1.063 1.03l.02.004v.145h-4.923v-.145l.019-.005c.639-.144.994-.353 1.054-1.03V7.267l-4.745 11.15h-.261L6.15 7.569v9.445c0 .857.358 1.094 1.063 1.253l.02.004v.147H4.405v-.147l.019-.004c.705-.16 1.065-.397 1.065-1.253V6.987c0-.857-.358-1.094-1.064-1.254l-.018-.004zm19.25 3.668c-1.086.023-1.733 1.323-1.813 3.124H24V9.298a1.378 1.378 0 0 0-.342-.047Zm-1.862 3.632c-.1 1.756.86 3.239 2.204 3.634v-3.634z" },
+
+  { name:"X", band:"publish", colour:"#FFFFFF",
+    handle:"@ashoksdialect", url:"https://x.com/ashoksdialect",
+    phonetic:"/ɛks/", gloss:"<em>v.</em> to think out loud, in under 280.",
+    icon:"M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z" },
+
+  { name:"Threads", band:"publish", colour:"#C4B5FD",
+    handle:"@ashoksdialect", url:"https://www.threads.net/@ashoksdialect",
+    phonetic:"/θrɛdz/", gloss:"<em>n.</em> a sentence that keeps deciding not to end.",
+    icon:"M18.263 11.097c-.03-3.486-1.92-5.586-5.111-5.586-2.13 0-3.922.963-4.863 2.499l2.062 1.438c.535-.843 1.272-1.543 2.628-1.543 1.528 0 2.318.85 2.544 2.431a15 15 0 0 0-2.236-.173c-4.125 0-6.068 1.867-6.068 4.336s1.943 3.99 4.804 3.99c3.139 0 5.013-2.115 5.781-4.735.798.361 1.348 1.204 1.348 2.47 0 3.387-3.907 5.232-7.22 5.232-4.885 0-8.077-3.207-8.077-8.424 0-6.392 4.223-10.487 9.9-10.487 3.808 0 5.69 1.671 6.97 3.914l2.108-1.475C21.44 2.078 18.331 0 13.663 0 6.227 0 1.168 5.277 1.168 12.934c0 7 4.953 11.066 10.856 11.066 4.878 0 9.809-2.846 9.809-7.716 0-2.545-1.46-4.231-3.569-5.187m-6.33 4.855c-1.077 0-2.026-.512-2.026-1.453 0-1.483 1.822-1.934 3.606-1.934.678 0 1.34.045 1.927.173-.422 1.927-1.671 3.215-3.508 3.214Z" },
+
+  { name:"YouTube", band:"publish", colour:"#FF3D46",
+    handle:"youtube.com/@ashoksdialect", url:"https://www.youtube.com/@ashoksdialect",
+    phonetic:"/ˈjuː.tjuːb/", gloss:"<em>v.</em> to explain it properly, out loud, with the screen on.",
+    icon:"M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" },
+
+  { name:"Instagram", band:"publish", colour:"#FF3E7F",
+    handle:"@ashoksdialect", url:"https://instagram.com/ashoksdialect",
+    phonetic:"/ˈɪn.stə.ɡræm/", gloss:"<em>n.</em> the frame that arrives before the caption.",
+    icon:"M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077" },
+
+  { name:"Pinterest", band:"publish", colour:"#FF4062",
+    handle:"pinterest.com/ashoksdialect", url:"https://www.pinterest.com/ashoksdialect",
+    phonetic:"/ˈpɪn.trɛst/", gloss:"<em>n.</em> everything I fully intend to build one day.",
+    icon:"M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146 1.123.345 2.306.535 3.55.535 6.607 0 11.985-5.365 11.985-11.987C23.97 5.39 18.592.026 11.985.026L12.017 0z" },
+
+  { name:"LinkedIn", band:"reach", colour:"#3B9BE8",
+    handle:"linkedin.com/in/ashoksdialect", url:"https://www.linkedin.com/in/ashoksdialect",
+    phonetic:"/ˈlɪŋkt.ɪn/", gloss:"<em>n.</em> the résumé that answers back.",
+    icon:"M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" },
+
+  { name:"Facebook", band:"reach", colour:"#5A9BFF",
+    handle:"facebook.com/ashoksdialect", url:"https://www.facebook.com/ashoksdialect",
+    phonetic:"/ˈfeɪs.bʊk/", gloss:"<em>n.</em> the long table where old friends are still sitting.",
+    icon:"M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z" },
+
+  { name:"WhatsApp", band:"reach", colour:"#25D366",
+    handle:"message me directly", url:"https://wa.me/91XXXXXXXXXX",
+    phonetic:"/ˈwɒts.æp/", gloss:"<em>v.</em> to say it in one line, right now.",
+    icon:"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" },
+
+  { name:"Snapchat", band:"reach", colour:"#FFE600",
+    handle:"@ashoksdialect", url:"https://www.snapchat.com/add/ashoksdialect",
+    phonetic:"/ˈsnæp.tʃæt/", gloss:"<em>n.</em> proof that disappears, on purpose.",
+    icon:"M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z" },
+
+  { name:"Horizon", band:"reach", colour:"#A78BFA",
+    handle:"Meta Horizon Worlds", url:"https://horizon.meta.com/profile/ashoksdialect",
+    phonetic:"/həˈraɪ.zən/", gloss:"<em>n.</em> a room with no address. Come stand in it.",
+    icon:"M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z" }
+];
+
+/* ══════════════════════════════════════════════════════════════════════
+   3 · MECHANICS
+   ══════════════════════════════════════════════════════════════════════ */
+const STEP = 360 / ENTRIES.length;
+let TILT = 58;
+
+const $ = id => document.getElementById(id);
+const stage=$('stage'), scene=$('scene'), dial=$('dial'), plate=$('plate'),
+      beltTilt=$('beltTilt'), belt=$('belt'),
+      cometTilt=$('cometTilt'), cometPath=$('cometPath'), cometDot=$('cometDot'),
+      strip=$('strip'), idxEl=$('idx'), bandEl=$('band'),
+      core={ chan:$('chan'), ipa:$('ipa'), gloss:$('gloss'),
+             avatar:$('avatar'), bio:$('bio') };
+
+core.bio.textContent = ME.bio;
+core.avatar.innerHTML = ME.avatar ? '<img src="'+ME.avatar+'" alt="Ashok">' : ME.monogram;
+$('tot').textContent = String(ENTRIES.length).padStart(2,'0');
+
+/* ── nodes ── */
+const nodes = ENTRIES.map((e,i) => {
+  const a = document.createElement('a');
+  a.className='node'; a.href=e.url; a.target='_blank'; a.rel='noopener noreferrer';
+  a.style.setProperty('--nc', e.colour);
+  a.setAttribute('aria-label', 'Open ' + e.name + ' in a new tab');
+  a.style.setProperty('--spin', (7+Math.random()*7).toFixed(1)+'s');
+  a.innerHTML = '<span class="disc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+e.icon+'"/></svg></span>';
+  a.addEventListener('click', ev => { if (moved) ev.preventDefault(); });   // a drag isn't a click
+  a.addEventListener('focus', () => goTo(i));
+  a.addEventListener('pointerenter', () => hovering = true);
+  a.addEventListener('pointerleave', () => hovering = false);
+  dial.appendChild(a);
+  return { el:a, angle:i*STEP, data:e, phase:Math.random()*6.28, rate:0.4+Math.random()*0.45 };
+});
+nodes.forEach(() => { const p=document.createElement('i'); p.className='pip'; strip.appendChild(p); });
+const pips=[...strip.children];
+
+/* hidden stand-in used to measure the dial's true on-screen footprint */
+const probe = document.createElement('span');
+probe.className='node probe'; probe.setAttribute('aria-hidden','true');
+probe.innerHTML='<span class="disc"></span>';
+dial.appendChild(probe);
+
+/* ── state ── */
+let R=300, SIZE=60, rot=0, target=0, focus=-1;
+let tiltX=0, tiltY=0, tTiltX=0, tTiltY=0, pmx=0, pmy=0;
+const norm = d => ((d+180)%360+360)%360-180;
+const nodeSize = r => Math.max(40, Math.min(r*0.20, 70));
+const tickPad  = r => Math.min(46, Math.max(16, r*0.14));
+
+/* ── drawing ── */
+function plateSVG(r){
+  const pad=tickPad(r), s=(r+pad+26)*2, c=s/2;
+  let t='';
+  for (let i=0;i<72;i++){
+    const a=i*5*Math.PI/180, long=i%6===0;
+    const r1=r+pad*(long?.34:.6), r2=r+pad;
+    t+='<line class="tick" x1="'+(c+Math.cos(a)*r1).toFixed(1)+'" y1="'+(c+Math.sin(a)*r1).toFixed(1)+
+       '" x2="'+(c+Math.cos(a)*r2).toFixed(1)+'" y2="'+(c+Math.sin(a)*r2).toFixed(1)+
+       '" opacity="'+(long?.85:.3)+'"/>';
+  }
+  return '<svg width="'+s+'" height="'+s+'">'+
+    '<circle class="rim" cx="'+c+'" cy="'+c+'" r="'+(r*.40)+'" stroke-dasharray="2 8"/>'+
+    '<circle class="rim" cx="'+c+'" cy="'+c+'" r="'+(r*.70)+'" stroke-dasharray="2 8"/>'+
+    '<circle class="glowring" cx="'+c+'" cy="'+c+'" r="'+r+'"/>'+
+    '<circle class="rim" cx="'+c+'" cy="'+c+'" r="'+(r+pad)+'"/>'+t+'</svg>';
+}
+/* the dust belt — a thin asteroid field outside the channel orbit */
+let dustSeed=[];
+function beltSVG(r){
+  const inner=r*1.13, outer=r*1.34, s=(outer+14)*2, c=s/2;
+  if (!dustSeed.length)
+    dustSeed = Array.from({length:170},()=>({a:Math.random()*6.2832, t:Math.random(),
+      z:Math.random()<.1?1.7:.9, o:(.10+Math.random()*.42)}));
+  let d='';
+  for (const p of dustSeed){
+    const rr=inner+p.t*(outer-inner);
+    d+='<circle cx="'+(c+Math.cos(p.a)*rr).toFixed(1)+'" cy="'+(c+Math.sin(p.a)*rr).toFixed(1)+
+       '" r="'+p.z+'" opacity="'+p.o.toFixed(2)+'"/>';
+  }
+  return '<svg class="dust" width="'+s+'" height="'+s+'">'+d+'</svg>';
+}
+/* a lone body on a steeply inclined orbit, crossing the plane */
+const COMET = 1.30;                     // comet orbit radius, as a multiple of R
+function cometSVG(r){
+  const rr=r*COMET, s=(rr+14)*2, c=s/2;
+  return '<svg width="'+s+'" height="'+s+'"><circle class="trail" cx="'+c+'" cy="'+c+'" r="'+rr+'"/></svg>';
+}
+
+/* ── layout: guess, then verify against real rendered boxes ── */
+function apply(){
+  SIZE = nodeSize(R);
+  plate.innerHTML  = plateSVG(R);
+  belt.innerHTML   = beltSVG(R);
+  const oldTrail = cometTilt.querySelector('svg');
+  if (oldTrail) oldTrail.remove();
+  cometTilt.insertAdjacentHTML('afterbegin', cometSVG(R));
+  cometDot.style.transform = 'translateX('+(R*COMET)+'px)';
+  const sz = SIZE+'px', m = (-SIZE/2)+'px';
+  [...nodes.map(n=>n.el), probe].forEach(el => {
+    el.style.width=sz; el.style.height=sz; el.style.marginLeft=m; el.style.marginTop=m;
+  });
+  dial.style.transform    = 'translate(-50%,-50%) rotateX('+TILT+'deg) rotateZ('+rot.toFixed(2)+'deg)';
+  plate.style.transform   = 'translate(-50%,-50%) rotateX('+TILT+'deg)';
+  beltTilt.style.transform= 'translate(-50%,-50%) rotateX('+(TILT+3)+'deg)';
+  cometTilt.style.transform='translate(-50%,-50%) rotateZ(-22deg) rotateX('+(TILT-26)+'deg)';
+}
+function probeAt(phi, scale){
+  probe.style.transform = 'rotateY('+(phi-rot)+'deg) translateZ('+R+'px) rotateY('+(-phi)+
+                          'deg) rotateX('+(-TILT)+'deg) scale('+scale+')';
+  return probe.getBoundingClientRect();
+}
+function measure(){
+  const W=innerWidth, H=innerHeight, tight=W<700;
+  TILT = H<620 ? 68 : H<780 ? 64 : 58;
+  /* room kept clear for the HUD, the pip strip, the tilt wobble and the vertical bob */
+  const m = { top: tight?60:80, bottom: tight?106:96, side: tight?12:30 };
+  R = Math.min(W*0.45, H*0.72, 460);
+
+  for (let i=0;i<16;i++){
+    apply();
+    const boxes = [
+      plate.querySelector('svg').getBoundingClientRect(),
+      probeAt(0, 1.10), probeAt(180, 0.58), probeAt(90, 0.84), probeAt(270, 0.84)
+    ];
+    const top    = Math.min(...boxes.map(b=>b.top))    - 10;   // bob + wobble slack
+    const bottom = Math.max(...boxes.map(b=>b.bottom)) + 10;
+    const left   = Math.min(...boxes.map(b=>b.left))   - 8;
+    const right  = Math.max(...boxes.map(b=>b.right))  + 8;
+    if (top>=m.top && bottom<=H-m.bottom && left>=m.side && right<=W-m.side) return;
+    if (R<=90){ R=90; apply(); return; }
+    R = Math.max(90, R*0.94);
+  }
+}
+
+/* ── the loop ── */
+function goTo(i){ target = -nodes[i].angle; idle = performance.now(); }
+let idle = performance.now(), last = 0, hovering = false;
+const AUTO = 360/95;                    // degrees per second — one orbit in 95s
+
+function frame(now){
+  const t = now/1000;
+  rot   += (target-rot)*0.11;
+  tiltX += (tTiltX-tiltX)*0.06;
+  tiltY += (tTiltY-tiltY)*0.06;
+  scene.style.transform = 'rotateX('+tiltX.toFixed(2)+'deg) rotateY('+tiltY.toFixed(2)+'deg)';
+
+  const cosTilt=Math.cos(TILT*Math.PI/180);
+  let best=0, bestD=1e9;
+  for (let i=0;i<nodes.length;i++){
+    const n=nodes[i], world=norm(n.angle+rot), d=Math.abs(world);
+    if (d<bestD){ bestD=d; best=i; }
+    const front=Math.cos(world*Math.PI/180), k=(front+1)/2;
+    const s=0.58+0.52*k;
+    const bob=Math.sin(t*n.rate + n.phase) * (SIZE*0.085);   // gentle hover
+    n.el.style.transform =
+      'rotateZ('+n.angle+'deg) translateY('+R+'px) rotateZ('+(-(n.angle+rot))+
+      'deg) rotateX('+(-TILT)+'deg) translateY('+bob.toFixed(2)+'px) scale('+s.toFixed(3)+')';
+    n.el.style.opacity = (0.24+0.76*Math.pow(k,1.4)).toFixed(3);
+    n.el.style.zIndex  = Math.round(k*100);
+
+    /* where the star's light falls on this planet, in its own screen-facing frame */
+    const wr=world*Math.PI/180;
+    const ox=-Math.sin(wr), oy=Math.cos(wr)*cosTilt;      // direction out from the star
+    const len=Math.hypot(ox,oy)||1, ux=ox/len, uy=oy/len;
+    const st=n.el.style;
+    st.setProperty('--lx',(50-40*ux).toFixed(1)+'%');
+    st.setProperty('--ly',(50-40*uy).toFixed(1)+'%');
+    st.setProperty('--sx',(5.5*ux).toFixed(1)+'px');
+    st.setProperty('--sy',(5.5*uy).toFixed(1)+'px');
+  }
+  dial.style.transform='translate(-50%,-50%) rotateX('+TILT+'deg) rotateZ('+rot.toFixed(2)+'deg)';
+  if (best!==focus) setFocus(best);
+
+  /* the system orbits clockwise on its own, and yields the moment you touch it */
+  const dt = last ? Math.min(0.05,(now-last)/1000) : 0.016; last = now;
+  if (!down && !hovering && now-idle > 3600) target += AUTO*dt;
+
+  drawStars(t);
+  requestAnimationFrame(frame);
+}
+
+function setFocus(i){
+  const prev=focus; focus=i;
+  if (prev>=0) nodes[prev].el.classList.remove('on');
+  nodes[i].el.classList.add('on');
+  const e=nodes[i].data;
+  document.documentElement.style.setProperty('--c', e.colour);
+  idxEl.textContent=String(i+1).padStart(2,'0');
+  bandEl.textContent=e.band;
+  pips.forEach((p,k)=>p.classList.toggle('on',k===i));
+  [core.chan,core.ipa,core.gloss].forEach(el=>el.classList.add('fade'));
+  clearTimeout(setFocus._t);
+  setFocus._t=setTimeout(()=>{
+    core.chan.textContent=e.name; core.ipa.textContent=e.phonetic;
+    core.gloss.innerHTML=e.gloss;
+    [core.chan,core.ipa,core.gloss].forEach(el=>el.classList.remove('fade'));
+  },150);
+}
+
+/* ── starfield ── */
+const cv=$('stars'), ctx=cv.getContext('2d');
+let stars=[], DPR=1;
+function seedStars(){
+  DPR=Math.min(2, devicePixelRatio||1);
+  cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
+  cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
+  const n=Math.min(420, Math.round(innerWidth*innerHeight/4200));
+  stars=Array.from({length:n},()=>({
+    x:Math.random(), y:Math.random(), z:Math.random(),
+    r:Math.random()*1.05+0.22, tw:Math.random()*6.2832, sp:0.3+Math.random()*0.9
+  }));
+}
+function drawStars(t){
+  const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  for (const s of stars){
+    const depth=0.35+s.z;
+    const x=((s.x + t*0.0016*s.z) % 1) * W + pmx*depth*26*DPR;
+    const y=s.y*H + pmy*depth*20*DPR;
+    const a=(0.30+0.42*Math.sin(t*s.sp + s.tw)) * (0.45+0.55*s.z);
+    ctx.globalAlpha=Math.max(0,a);
+    ctx.fillStyle = s.z>0.86 ? '#BFE9FF' : '#FFFFFF';
+    const r=s.r*depth*DPR;
+    ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ── input ── */
+let lock=0;
+stage.addEventListener('wheel', ev=>{
+  ev.preventDefault();
+  const now=performance.now(); if (now<lock) return;
+  lock=now+110; idle=now;
+  const d=Math.abs(ev.deltaY)>Math.abs(ev.deltaX)?ev.deltaY:ev.deltaX;
+  target += (d>0 ? -STEP : STEP);
+},{passive:false});
+
+let down=false,lastX=0,moved=false;
+stage.addEventListener('pointerdown',ev=>{
+  down=true;moved=false;lastX=ev.clientX;idle=performance.now();
+  stage.classList.add('dragging'); stage.setPointerCapture(ev.pointerId);
+});
+stage.addEventListener('pointermove',ev=>{
+  if (down){
+    const dx=ev.clientX-lastX; lastX=ev.clientX;
+    if (Math.abs(dx)>1) moved=true;
+    target += dx*0.32; idle=performance.now();
+  }
+  pmx = ev.clientX/innerWidth - .5;
+  pmy = ev.clientY/innerHeight - .5;
+  tTiltY = pmx*7;
+  tTiltX = pmy*5;
+});
+function release(){
+  if (!down) return;
+  down=false; stage.classList.remove('dragging');
+  target=Math.round(target/STEP)*STEP;
+  idle=performance.now();
+  setTimeout(()=>moved=false,60);
+}
+stage.addEventListener('pointerup',release);
+stage.addEventListener('pointercancel',release);
+addEventListener('keydown',ev=>{
+  if (ev.key==='ArrowRight'||ev.key==='ArrowDown'){ target-=STEP; idle=performance.now(); ev.preventDefault(); }
+  if (ev.key==='ArrowLeft' ||ev.key==='ArrowUp'  ){ target+=STEP; idle=performance.now(); ev.preventDefault(); }
+  if (ev.key==='Enter' && document.activeElement===document.body && focus>=0) nodes[focus].el.click();
+});
+
+let rt;
+const remeasure=()=>{ clearTimeout(rt); rt=setTimeout(()=>{ seedStars(); measure(); },90); };
+addEventListener('resize',remeasure);
+addEventListener('orientationchange',remeasure);
+if (window.visualViewport) visualViewport.addEventListener('resize',remeasure);
+
+seedStars();
+measure();
+goTo(0);
+rot=-STEP*2.5;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
